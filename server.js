@@ -215,7 +215,7 @@ app.get('/api/usuarios', authMiddleware, adminMiddleware, async (req, res) => {
 
 app.patch('/api/usuarios/:id/rol', authMiddleware, adminMiddleware, async (req, res) => {
   const { rol } = req.body;
-  const rolesValidos = ['admin', 'ganadero', 'veterinario', 'trabajador'];
+  const rolesValidos = ['admin', 'productor', 'encargado', 'tecnico'];
   if (!rolesValidos.includes(rol))
     return res.status(400).json({ error: 'Rol inválido' });
   try {
