@@ -305,17 +305,49 @@ app.get('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecnic
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
-  const { lote_id,numero_arete,nombre,especie,raza,sexo,fecha_nacimiento,peso_inicial,color,estado,observaciones } = req.body;
+// ============================================================
+// 🐄 ENDPOINT: REGISTRO DE GANADO (BLINDADO CONTRA COLUMNAS VACÍAS)
+// ============================================================
+app.post('/api/ganado', authMiddleware, requerirRoles('admin', 'productor', 'tecnico'), async (req, res) => {
+  // Destructuramos los datos que envía el formulario desde el Frontend
+  const { 
+    lote_id, numero_arete, nombre, especie, raza, sexo, 
+    fecha_nacimiento, peso_inicial, color, estado, observaciones 
+  } = req.body;
+
   try {
+    // Ejecutamos la inserción en PostgreSQL asegurando la consistencia de pesos
     const r = await pool.query(
-      `INSERT INTO ganado (lote_id,numero_arete,nombre,especie,raza,sexo,fecha_nacimiento,
-          peso_inicial,peso_actual,color,estado,observaciones)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [lote_id,numero_arete,nombre,especie,raza,sexo,fecha_nacimiento||null,
-        peso_inicial,peso_inicial,color,estado||'activo',observaciones]);
+      `INSERT INTO ganado (
+        lote_id, numero_arete, nombre, especie, raza, sexo, fecha_nacimiento,
+        peso_inicial, peso_actual, color, estado, observaciones
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+      RETURNING *`,
+      [
+        lote_id,
+        numero_arete,
+        nombre,
+        especie || 'Bovino', // Si no viene la especie, por defecto es Bovino
+        raza,
+        sexo,
+        fecha_nacimiento || null, // Si está vacío, la BD lo acepta como NULL sin tronar
+        peso_inicial,            // Parámetro $8 -> Se almacena en peso_inicial
+        peso_inicial,            // Parámetro $9 -> Arranca el peso_actual con el de entrada
+        color,
+        estado || 'activo',      // Parámetro $11 -> Estado inicial por defecto
+        observaciones
+      ]
+    );
+
+    // Respondemos con estatus 201 (Creado) y el objeto insertado con sus llaves UUID
     res.status(201).json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+  } catch (err) { 
+    // Si la base de datos rechaza algo (ej. arete duplicado), atrapamos el error y evitamos el crasheo del servidor
+    console.error('❌ [API] Error al registrar ganado:', err.message);
+    res.status(500).json({ error: `Error interno de base de datos: ${err.message}` }); 
+  }
 });
 
 app.put('/api/ganado/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
@@ -701,11 +733,11 @@ app.delete('/api/riegos/:id', authMiddleware, requerirRoles('admin','productor',
 // ============================================================
 async function inicializarDB() {
   try {
-    await pool.query(`
+   await pool.query(`
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMP WITH TIME ZONE;
       
-      -- Forzamos a que las columnas de control de peso existan de forma uniforme
+      -- Parche crítico: Inyectamos peso_inicial y peso_actual si la tabla no las tiene
       ALTER TABLE ganado ADD COLUMN IF NOT EXISTS peso_inicial DECIMAL(10,2);
       ALTER TABLE ganado ADD COLUMN IF NOT EXISTS peso_actual DECIMAL(10,2);
       

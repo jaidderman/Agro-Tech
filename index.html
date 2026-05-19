@@ -577,10 +577,22 @@ textarea{resize:vertical;min-height:80px;}
               <button class="btn btn-outline btn-sm" onclick="showPage('ganado',null)">Ver todo →</button>
             </div>
             <div class="table-wrap">
-              <table><thead><tr><th>Arete</th><th>Nombre</th><th>Raza</th><th>Peso</th><th>Estado</th></tr></thead>
-              <tbody id="dashGanadoBody"><tr><td colspan="5" style="text-align:center;color:#ccc;padding:20px;">Cargando...</td></tr></tbody></table>
-            </div>
-          </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Arete</th>
+        <th>Nombre</th>
+        <th>Raza</th>
+        <th>Peso Inicial</th>
+        <th>Peso Actual</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody id="dashGanadoBody">
+      <tr><td colspan="6" style="text-align:center;color:#ccc;padding:20px;">Cargando...</td></tr>
+    </tbody>
+  </table>
+</div>
           <div class="card">
             <div class="card-header">
               <div><div class="card-title">Cultivos en Proceso</div></div>
@@ -1420,36 +1432,76 @@ async function cargarCultivosEnSelect(sid){
 }
 
 // ===== DASHBOARD =====
+// ===== DASHBOARD REPARADO Y SINCRONIZADO CON CONTROL DE PESOS =====
 async function loadDashboard(){
-  try{
-    const r=await fetch(API_BASE+'/dashboard/stats',{headers:authHeaders()});
-    if(!r.ok) throw new Error();
-    const s=await r.json();
-    document.getElementById('statGanado').textContent=s.total_ganado??0;
-    document.getElementById('statCultivos').textContent=s.cultivos_activos??0;
-    document.getElementById('statVacunas').textContent=s.vacunas_mes??0;
-    document.getElementById('statAlertas').textContent=s.alertas_pendientes??0;
-    document.getElementById('statVentas').textContent=fmtMoney(s.ventas_mes);
-    const ap=s.alertas_pendientes??0;
-    document.getElementById('alertBadge').textContent=ap;
-    document.getElementById('alertCountBadge').textContent=`${ap} pendientes`;
-    document.getElementById('notifDot').style.display=ap>0?'block':'none';
-    const ganadoB=document.getElementById('dashGanadoBody');
-    if(s.ganado_reciente?.length>0){
-      ganadoB.innerHTML=s.ganado_reciente.map(a=>{
-        let bc='badge-green'; if(a.estado==='vendido')bc='badge-orange'; if(a.estado==='muerto')bc='badge-red';
-        return `<tr><td><span style="font-family:'IBM Plex Mono',monospace;background:#f5f5f5;padding:2px 8px;border-radius:6px;">${a.numero_arete}</span></td><td style="font-weight:600;">${a.nombre||'—'}</td><td>${a.especie}/${a.raza||'N/A'}</td><td>${a.peso_actual||0}kg</td><td><span class="badge ${bc}">${a.estado}</span></td></tr>`;
+  try {
+    const r = await fetch(API_BASE + '/dashboard/stats', { headers: authHeaders() });
+    if (!r.ok) throw new Error();
+    const s = await r.json();
+    
+    // Inyección de contadores analíticos en las tarjetas superiores
+    document.getElementById('statGanado').textContent = s.total_ganado ?? 0;
+    document.getElementById('statCultivos').textContent = s.cultivos_activos ?? 0;
+    document.getElementById('statVacunas').textContent = s.vacunas_mes ?? 0;
+    document.getElementById('statAlertas').textContent = s.alertas_pendientes ?? 0;
+    document.getElementById('statVentas').textContent = fmtMoney(s.ventas_mes);
+    
+    // Control de insignias de alertas del sistema
+    const ap = s.alertas_pendientes ?? 0;
+    document.getElementById('alertBadge').textContent = ap;
+    document.getElementById('alertCountBadge').textContent = `${ap} pendientes`;
+    document.getElementById('notifDot').style.display = ap > 0 ? 'block' : 'none';
+    
+    // 🐄 RENDERIZADO DEL MINI-INVENTARIO PECUARIO CON AMBOS PESOS
+    const ganadoB = document.getElementById('dashGanadoBody');
+    if (s.ganado_reciente && s.ganado_reciente.length > 0) {
+      ganadoB.innerHTML = s.ganado_reciente.map(a => {
+        let bc = 'badge-green'; 
+        if (a.estado === 'vendido') bc = 'badge-orange'; 
+        if (a.estado === 'muerto') bc = 'badge-red';
+        
+        return `<tr>
+          <td><span style="font-family:'IBM Plex Mono',monospace;background:#f5f5f5;padding:2px 8px;border-radius:6px;">${a.numero_arete}</span></td>
+          <td style="font-weight:600;">${a.nombre || '—'}</td>
+          <td><span style="font-size:12px;color:#666;">${a.raza || 'N/A'}</span></td>
+          
+          <td style="font-weight:500;">${a.peso_inicial ? a.peso_inicial + ' kg' : '—'}</td>
+          <td style="font-weight:600; color:var(--moss-light);">${a.peso_actual ? a.peso_actual + ' kg' : '—'}</td>
+          
+          <td><span class="badge ${bc}">${a.estado.toUpperCase()}</span></td>
+        </tr>`;
       }).join('');
-    } else ganadoB.innerHTML='<tr><td colspan="5" style="text-align:center;color:#ccc;padding:20px;">Sin registros</td></tr>';
-    const cultivosB=document.getElementById('dashCultivosBody');
-    if(s.cultivos_recientes?.length>0){
-      const bcm={planificado:'badge-orange',sembrado:'badge-green',en_crecimiento:'badge-green',cosechado:'badge-amber',perdido:'badge-red'};
-      cultivosB.innerHTML=s.cultivos_recientes.map(c=>`<tr><td style="font-weight:600;">${c.nombre_cultivo}</td><td>${c.variedad||'—'}</td><td>${formatDate(c.fecha_siembra)}</td><td>${formatDate(c.fecha_estimada_cosecha)}</td><td><span class="badge ${bcm[c.estado]||'badge-green'}">${(c.estado||'').replace('_',' ')}</span></td></tr>`).join('');
-    } else cultivosB.innerHTML='<tr><td colspan="5" style="text-align:center;color:#ccc;padding:20px;">Sin registros</td></tr>';
+    } else {
+      // Ajustamos el colspan a 6 porque ahora la estructura tiene una columna más
+      ganadoB.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#ccc;padding:20px;">Sin registros activos</td></tr>';
+    }
+    
+    // 🌽 RENDERIZADO DEL MINI-INVENTARIO DE SIEMBRAS (AGRICULTURA)
+    const cultivosB = document.getElementById('dashCultivosBody');
+    if (s.cultivos_recientes && s.cultivos_recientes.length > 0) {
+      const bcm = { planificado: 'badge-orange', sembrado: 'badge-green', en_crecimiento: 'badge-green', cosechado: 'badge-amber', perdido: 'badge-red' };
+      cultivosB.innerHTML = s.cultivos_recientes.map(c => `
+        <tr>
+          <td style="font-weight:600;">${c.nombre_cultivo}</td>
+          <td>${c.variedad || '—'}</td>
+          <td>${formatDate(c.fecha_siembra)}</td>
+          <td>${formatDate(c.fecha_estimada_cosecha)}</td>
+          <td><span class="badge ${bcm[c.estado] || 'badge-green'}">${(c.estado || '').replace('_', ' ').toUpperCase()}</span></td>
+        </tr>
+      `).join('');
+    } else {
+      cultivosB.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#ccc;padding:20px;">Sin registros agrícolas</td></tr>';
+    }
+    
+    // Carga paralela de gráficos y submódulos dependientes
     await loadDashboardAlertas();
     await loadGanadoChart();
     await loadDashVentas();
-  }catch(e){showToast('Error al conectar con el servidor','error');}
+    
+  } catch (e) {
+    console.error("Error al procesar las métricas en loadDashboard:", e);
+    showToast('Error al conectar con el servidor o procesar métricas', 'error');
+  }
 }
 
 async function loadDashboardAlertas(){
