@@ -665,17 +665,32 @@ app.delete('/api/riegos/:id', authMiddleware, async (req, res) => {
 // ============================================================
 async function inicializarDB() {
   try {
+    // 1. Asegurar columnas de auditoría en usuarios
     await pool.query(`
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMP WITH TIME ZONE;
     `);
+    
     await pool.query(`
       ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
       ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
         CHECK (rol IN ('admin','ganadero','veterinario','trabajador','productor','encargado','tecnico'));
     `);
     
-    // Cambiado a gen_random_uuid() para compatibilidad total con Render
+    // 2. Crear Catálogo de Vacunas si no existe (Evita fallas en módulo veterinario)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS catalogo_vacunas (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre VARCHAR(150) NOT NULL,
+        descripcion TEXT,
+        laboratorio VARCHAR(100),
+        dosis_ml DECIMAL(5,2),
+        intervalo_dias INTEGER,
+        activo BOOLEAN DEFAULT TRUE
+      );
+    `);
+
+    // 3. Crear tablas dependientes con tipos TEXT y UUID nativos de Render
     await pool.query(`
       CREATE TABLE IF NOT EXISTS recovery_tokens (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -685,6 +700,7 @@ async function inicializarDB() {
         fecha_expiracion TIMESTAMP NOT NULL,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
       CREATE TABLE IF NOT EXISTS ventas (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('ganado','cultivo')),
@@ -699,6 +715,7 @@ async function inicializarDB() {
       );
     `);
 
+    // 4. Verificación e inserción del Administrador base
     const hash = await bcrypt.hash('123456', 10);
     const existe = await pool.query('SELECT id FROM usuarios WHERE email=$1', ['admin@agrotech.mx']);
     if (!existe.rows.length) {
@@ -709,9 +726,22 @@ async function inicializarDB() {
     } else {
       console.log('✅ [BD] Admin ya existe.');
     }
-    console.log('✅ [BD] v9.0 — Base de datos verificada y lista.');
+
+    // 5. Insertar vacunas de prueba por defecto si el catálogo está vacío
+    const vacunasExistentes = await pool.query('SELECT id FROM catalogo_vacunas LIMIT 1');
+    if (!vacunasExistentes.rows.length) {
+      await pool.query(`
+        INSERT INTO catalogo_vacunas (nombre, laboratorio, dosis_ml, intervalo_dias) VALUES
+        ('Triple Bovina', 'Lapisa', 5.00, 180),
+        ('Brucelosis', 'PRONABIVE', 2.00, 365),
+        ('Fiebre Aftosa', 'Biogénesis', 2.00, 180);
+      `);
+      console.log('✅ [BD] Catálogo de vacunas inicializado con datos de prueba.');
+    }
+
+    console.log('✅ [BD] v9.0 — Base de datos verificada y sincronizada al 100%.');
   } catch (err) {
-    console.error('❌ [BD] Error en inicialización:', err.message);
+    console.error('❌ [BD] Error en inicialización de tablas:', err.message);
   }
 }
 
