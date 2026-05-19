@@ -119,6 +119,7 @@ app.post('/api/auth/register', async (req, res) => {
 // ============================================================
 
 // Paso 1: Solicitar token de recuperación
+// Paso 1: Solicitar token de recuperación
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'El correo es obligatorio' });
@@ -141,9 +142,9 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       'UPDATE recovery_tokens SET usado=true WHERE usuario_id=$1 AND usado=false', [user.id]
     );
 
-    // Guardar nuevo token
+    // Guardar nuevo token de forma explícita
     await pool.query(
-      `INSERT INTO recovery_tokens (usuario_id, token, fecha_expiracion) VALUES ($1, $2, $3)`,
+      `INSERT INTO recovery_tokens (usuario_id, token, fecha_expiracion, usado) VALUES ($1, $2, $3, FALSE)`,
       [user.id, token, expiracion]
     );
 
@@ -161,7 +162,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     res.json({ message: 'Se han enviado instrucciones. Revisa la consola de Render (Logs).' });
   } catch (err) { 
-    console.error(err);
+    console.error("Error interno en recuperación:", err.message);
     res.status(500).json({ error: 'Error interno al procesar la solicitud' }); 
   }
 });
@@ -664,7 +665,6 @@ app.delete('/api/riegos/:id', authMiddleware, async (req, res) => {
 // ============================================================
 async function inicializarDB() {
   try {
-    // 1. Modificaciones de seguridad y roles en la tabla usuarios
     await pool.query(`
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMP WITH TIME ZONE;
@@ -674,21 +674,17 @@ async function inicializarDB() {
       ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
         CHECK (rol IN ('admin','ganadero','veterinario','trabajador','productor','encargado','tecnico'));
     `);
-
-    // 2. Creación de la tabla de recuperación (Actualizada para Render sin fallas de UUID)
+    
+    // Cambiado a gen_random_uuid() para compatibilidad total con Render
     await pool.query(`
       CREATE TABLE IF NOT EXISTS recovery_tokens (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
         token TEXT NOT NULL,
-        fecha_expiracion TIMESTAMP NOT NULL,
         usado BOOLEAN DEFAULT FALSE,
+        fecha_expiracion TIMESTAMP NOT NULL,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
-
-    // 3. Creación de la tabla de ventas
-    await pool.query(`
       CREATE TABLE IF NOT EXISTS ventas (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('ganado','cultivo')),
@@ -703,7 +699,6 @@ async function inicializarDB() {
       );
     `);
 
-    // 4. Verificación e inserción del Administrador base
     const hash = await bcrypt.hash('123456', 10);
     const existe = await pool.query('SELECT id FROM usuarios WHERE email=$1', ['admin@agrotech.mx']);
     if (!existe.rows.length) {
@@ -714,8 +709,7 @@ async function inicializarDB() {
     } else {
       console.log('✅ [BD] Admin ya existe.');
     }
-    
-    console.log('✅ [BD] v9.0 — Base de datos verificada, tablas de recuperación y ventas listas.');
+    console.log('✅ [BD] v9.0 — Base de datos verificada y lista.');
   } catch (err) {
     console.error('❌ [BD] Error en inicialización:', err.message);
   }
