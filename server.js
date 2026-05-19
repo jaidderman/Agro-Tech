@@ -114,81 +114,100 @@ app.post('/api/auth/register', async (req, res) => {
 //  AUTH — RECUPERACIÓN DE CONTRASEÑA
 // ============================================================
 
+// ============================================================
+//   AUTH — RECUPERACIÓN DE CONTRASEÑA (REPARADO PARA RENDER)
+// ============================================================
+
 // Paso 1: Solicitar token de recuperación
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'El correo es obligatorio' });
+
   try {
     const result = await pool.query(
-      'SELECT id,nombre,apellido FROM usuarios WHERE email=$1 AND activo=true', [email]);
-    // Siempre responder igual para no revelar si existe el email
+      'SELECT id, nombre, apellido FROM usuarios WHERE email=$1 AND activo=true', [email]
+    );
+
+    // Respuesta genérica por seguridad
     if (!result.rows.length)
       return res.json({ message: 'Si ese correo está registrado, recibirás instrucciones.' });
 
     const user = result.rows[0];
     const token = crypto.randomBytes(32).toString('hex');
-    const expiracion = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    const expiracion = new Date(Date.now() + 60 * 60 * 1000); // 1 hora de validez
 
-    // Invalidar tokens anteriores
+    // Invalidar tokens viejos del mismo usuario
     await pool.query(
-      'UPDATE recovery_tokens SET usado=true WHERE usuario_id=$1 AND usado=false', [user.id]);
-    await pool.query(
-      `INSERT INTO recovery_tokens (usuario_id,token,fecha_expiracion) VALUES ($1,$2,$3)`,
-      [user.id, token, expiracion]);
+      'UPDATE recovery_tokens SET usado=true WHERE usuario_id=$1 AND usado=false', [user.id]
+    );
 
-    // === SIMULACIÓN DE EMAIL — en producción reemplazar con nodemailer/sendgrid ===
-    const enlace = `http://localhost:3001/?reset=${token}`;
+    // Guardar nuevo token
+    await pool.query(
+      `INSERT INTO recovery_tokens (usuario_id, token, fecha_expiracion) VALUES ($1, $2, $3)`,
+      [user.id, token, expiracion]
+    );
+
+    // === ENLACE CORREGIDO PARA RENDER ===
+    const enlace = `https://agro-tech-s3vb.onrender.com/?reset=${token}`;
+    
     console.log('\n' + '═'.repeat(65));
     console.log('📧  SIMULACIÓN DE EMAIL — RECUPERACIÓN DE CONTRASEÑA');
     console.log('═'.repeat(65));
     console.log(`👤  Para:    ${user.nombre} ${user.apellido} <${email}>`);
     console.log(`🔑  Token:   ${token}`);
     console.log(`🔗  Enlace:  ${enlace}`);
-    console.log(`⏰  Expira:  ${expiracion.toLocaleString('es-MX')} (1 hora)`);
+    console.log(`⏰  Expira:  ${expiracion.toLocaleString('es-MX')}`);
     console.log('═'.repeat(65) + '\n');
 
-    res.json({ message: 'Se han enviado instrucciones a tu correo. Revisa tu bandeja de entrada.' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    res.json({ message: 'Se han enviado instrucciones. Revisa la consola de Render (Logs).' });
+  } catch (err) { 
+    console.error(err);
+    res.status(500).json({ error: 'Error interno al procesar la solicitud' }); 
+  }
 });
 
 // Paso 2: Verificar validez del token
 app.get('/api/auth/verify-reset-token/:token', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT rt.*,u.nombre,u.apellido,u.email FROM recovery_tokens rt
+      `SELECT rt.*, u.nombre, u.apellido, u.email FROM recovery_tokens rt
        JOIN usuarios u ON rt.usuario_id=u.id
-       WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion>NOW()`,
-      [req.params.token]);
+       WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion > NOW()`,
+      [req.params.token]
+    );
     if (!result.rows.length)
       return res.status(400).json({ error: 'El enlace es inválido o ha expirado.' });
+    
     const r = result.rows[0];
     res.json({ valid: true, nombre: r.nombre, apellido: r.apellido, email: r.email });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Paso 3: Cambiar contraseña con token
+// Paso 3: Cambiar contraseña
 app.post('/api/auth/reset-password', async (req, res) => {
   const { token, nueva_password } = req.body;
   if (!token || !nueva_password)
-    return res.status(400).json({ error: 'Token y nueva contraseña son requeridos' });
-  if (nueva_password.length < 6)
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    return res.status(400).json({ error: 'Faltan datos requeridos' });
+    
   try {
     const result = await pool.query(
-      `SELECT rt.*,u.nombre FROM recovery_tokens rt JOIN usuarios u ON rt.usuario_id=u.id
-       WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion>NOW()`,
-      [token]);
+      `SELECT rt.*, u.nombre FROM recovery_tokens rt JOIN usuarios u ON rt.usuario_id=u.id
+       WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion > NOW()`,
+      [token]
+    );
     if (!result.rows.length)
-      return res.status(400).json({ error: 'El enlace es inválido o ha expirado.' });
+      return res.status(400).json({ error: 'El enlace ha expirado.' });
+
     const { usuario_id, nombre } = result.rows[0];
     const hash = await bcrypt.hash(nueva_password, 10);
+    
     await pool.query('UPDATE usuarios SET password_hash=$1 WHERE id=$2', [hash, usuario_id]);
     await pool.query('UPDATE recovery_tokens SET usado=true WHERE token=$1', [token]);
-    console.log(`✅ [RECOVERY] Contraseña cambiada para: ${nombre} (id: ${usuario_id})`);
-    res.json({ message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' });
+    
+    console.log(`✅ [RECOVERY] Éxito para: ${nombre}`);
+    res.json({ message: 'Contraseña actualizada correctamente.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
 // ============================================================
 //  USUARIOS — SOLO ADMIN
 // ============================================================
@@ -645,6 +664,7 @@ app.delete('/api/riegos/:id', authMiddleware, async (req, res) => {
 // ============================================================
 async function inicializarDB() {
   try {
+    // 1. Modificaciones de seguridad y roles en la tabla usuarios
     await pool.query(`
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMP WITH TIME ZONE;
@@ -654,17 +674,23 @@ async function inicializarDB() {
       ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
         CHECK (rol IN ('admin','ganadero','veterinario','trabajador','productor','encargado','tecnico'));
     `);
+
+    // 2. Creación de la tabla de recuperación (Actualizada para Render sin fallas de UUID)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS recovery_tokens (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
-        token VARCHAR(255) UNIQUE NOT NULL,
-        usado BOOLEAN DEFAULT FALSE,
+        token TEXT NOT NULL,
         fecha_expiracion TIMESTAMP NOT NULL,
+        usado BOOLEAN DEFAULT FALSE,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // 3. Creación de la tabla de ventas
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS ventas (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('ganado','cultivo')),
         ganado_id UUID REFERENCES ganado(id) ON DELETE SET NULL,
         cultivo_id UUID REFERENCES cultivos(id) ON DELETE SET NULL,
@@ -677,6 +703,7 @@ async function inicializarDB() {
       );
     `);
 
+    // 4. Verificación e inserción del Administrador base
     const hash = await bcrypt.hash('123456', 10);
     const existe = await pool.query('SELECT id FROM usuarios WHERE email=$1', ['admin@agrotech.mx']);
     if (!existe.rows.length) {
@@ -687,7 +714,8 @@ async function inicializarDB() {
     } else {
       console.log('✅ [BD] Admin ya existe.');
     }
-    console.log('✅ [BD] v9.0 — Base de datos verificada y lista.');
+    
+    console.log('✅ [BD] v9.0 — Base de datos verificada, tablas de recuperación y ventas listas.');
   } catch (err) {
     console.error('❌ [BD] Error en inicialización:', err.message);
   }
