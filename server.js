@@ -246,7 +246,7 @@ app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
       await Promise.all([
         pool.query("SELECT COUNT(*) FROM ganado WHERE estado='activo'"),
         pool.query("SELECT COUNT(*) FROM cultivos WHERE estado NOT IN ('cosechado','perdido')"),
-        pool.query("SELECT COUNT(*) FROM alertas WHERE completada=false AND fecha_programada<=CURRENT_DATE+7"),
+        pool.query("SELECT COUNT(*) FROM alertas WHERE completada=false AND fecha_programada<=CURRENT_DATE"),
         pool.query("SELECT COUNT(*) FROM vacunaciones WHERE fecha_aplicacion>=CURRENT_DATE-30"),
         pool.query(`SELECT g.id,g.numero_arete,g.nombre,g.especie,g.raza,g.sexo,
                           g.peso_inicial,g.peso_actual,g.estado,l.nombre AS lote_nombre
