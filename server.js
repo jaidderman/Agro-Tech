@@ -114,11 +114,6 @@ app.post('/api/auth/register', async (req, res) => {
 //  AUTH — RECUPERACIÓN DE CONTRASEÑA
 // ============================================================
 
-// ============================================================
-//   AUTH — RECUPERACIÓN DE CONTRASEÑA (REPARADO PARA RENDER)
-// ============================================================
-
-// Paso 1: Solicitar token de recuperación
 // Paso 1: Solicitar token de recuperación
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -129,7 +124,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       'SELECT id, nombre, apellido FROM usuarios WHERE email=$1 AND activo=true', [email]
     );
 
-    // Respuesta genérica por seguridad
     if (!result.rows.length)
       return res.json({ message: 'Si ese correo está registrado, recibirás instrucciones.' });
 
@@ -137,18 +131,17 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiracion = new Date(Date.now() + 60 * 60 * 1000); // 1 hora de validez
 
-    // Invalidar tokens viejos del mismo usuario
+    // Invalidar tokens viejos
     await pool.query(
-      'UPDATE recovery_tokens SET usado=true WHERE usuario_id=$1 AND usado=false', [user.id]
+      'UPDATE tokens_recuperacion_v9 SET usado=true WHERE usuario_id=$1 AND usado=false', [user.id]
     );
 
     // Guardar nuevo token de forma explícita
     await pool.query(
-      `INSERT INTO recovery_tokens (usuario_id, token, fecha_expiracion, usado) VALUES ($1, $2, $3, FALSE)`,
+      `INSERT INTO tokens_recuperacion_v9 (usuario_id, token, fecha_expiracion, usado) VALUES ($1, $2, $3, FALSE)`,
       [user.id, token, expiracion]
     );
 
-    // === ENLACE CORREGIDO PARA RENDER ===
     const enlace = `https://agro-tech-s3vb.onrender.com/?reset=${token}`;
     
     console.log('\n' + '═'.repeat(65));
@@ -171,7 +164,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 app.get('/api/auth/verify-reset-token/:token', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT rt.*, u.nombre, u.apellido, u.email FROM recovery_tokens rt
+      `SELECT rt.*, u.nombre, u.apellido, u.email FROM tokens_recuperacion_v9 rt
        JOIN usuarios u ON rt.usuario_id=u.id
        WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion > NOW()`,
       [req.params.token]
@@ -192,7 +185,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     
   try {
     const result = await pool.query(
-      `SELECT rt.*, u.nombre FROM recovery_tokens rt JOIN usuarios u ON rt.usuario_id=u.id
+      `SELECT rt.*, u.nombre FROM tokens_recuperacion_v9 rt JOIN usuarios u ON rt.usuario_id=u.id
        WHERE rt.token=$1 AND rt.usado=false AND rt.fecha_expiracion > NOW()`,
       [token]
     );
@@ -203,7 +196,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const hash = await bcrypt.hash(nueva_password, 10);
     
     await pool.query('UPDATE usuarios SET password_hash=$1 WHERE id=$2', [hash, usuario_id]);
-    await pool.query('UPDATE recovery_tokens SET usado=true WHERE token=$1', [token]);
+    await pool.query('UPDATE tokens_recuperacion_v9 SET usado=true WHERE token=$1', [token]);
     
     console.log(`✅ [RECOVERY] Éxito para: ${nombre}`);
     res.json({ message: 'Contraseña actualizada correctamente.' });
@@ -665,42 +658,26 @@ app.delete('/api/riegos/:id', authMiddleware, async (req, res) => {
 // ============================================================
 async function inicializarDB() {
   try {
-    // 1. Asegurar columnas de auditoría en usuarios
     await pool.query(`
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acceso TIMESTAMP WITH TIME ZONE;
     `);
-    
     await pool.query(`
       ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;
       ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check
         CHECK (rol IN ('admin','ganadero','veterinario','trabajador','productor','encargado','tecnico'));
     `);
     
-    // 2. Crear Catálogo de Vacunas si no existe (Evita fallas en módulo veterinario)
+    // Usamos tokens_recuperacion_v9 para saltarnos el error de columnas de la tabla vieja
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS catalogo_vacunas (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        nombre VARCHAR(150) NOT NULL,
-        descripcion TEXT,
-        laboratorio VARCHAR(100),
-        dosis_ml DECIMAL(5,2),
-        intervalo_dias INTEGER,
-        activo BOOLEAN DEFAULT TRUE
-      );
-    `);
-
-    // 3. Crear tablas dependientes con tipos TEXT y UUID nativos de Render
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS recovery_tokens (
+      CREATE TABLE IF NOT EXISTS tokens_recuperacion_v9 (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
         token TEXT NOT NULL,
-        usado BOOLEAN DEFAULT FALSE,
         fecha_expiracion TIMESTAMP NOT NULL,
+        usado BOOLEAN DEFAULT FALSE,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-
       CREATE TABLE IF NOT EXISTS ventas (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('ganado','cultivo')),
@@ -715,7 +692,6 @@ async function inicializarDB() {
       );
     `);
 
-    // 4. Verificación e inserción del Administrador base
     const hash = await bcrypt.hash('123456', 10);
     const existe = await pool.query('SELECT id FROM usuarios WHERE email=$1', ['admin@agrotech.mx']);
     if (!existe.rows.length) {
@@ -726,22 +702,9 @@ async function inicializarDB() {
     } else {
       console.log('✅ [BD] Admin ya existe.');
     }
-
-    // 5. Insertar vacunas de prueba por defecto si el catálogo está vacío
-    const vacunasExistentes = await pool.query('SELECT id FROM catalogo_vacunas LIMIT 1');
-    if (!vacunasExistentes.rows.length) {
-      await pool.query(`
-        INSERT INTO catalogo_vacunas (nombre, laboratorio, dosis_ml, intervalo_dias) VALUES
-        ('Triple Bovina', 'Lapisa', 5.00, 180),
-        ('Brucelosis', 'PRONABIVE', 2.00, 365),
-        ('Fiebre Aftosa', 'Biogénesis', 2.00, 180);
-      `);
-      console.log('✅ [BD] Catálogo de vacunas inicializado con datos de prueba.');
-    }
-
-    console.log('✅ [BD] v9.0 — Base de datos verificada y sincronizada al 100%.');
+    console.log('✅ [BD] v9.0 — Base de datos verificada y lista.');
   } catch (err) {
-    console.error('❌ [BD] Error en inicialización de tablas:', err.message);
+    console.error('❌ [BD] Error en inicialización:', err.message);
   }
 }
 
