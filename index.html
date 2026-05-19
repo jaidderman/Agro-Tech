@@ -628,19 +628,45 @@ textarea{resize:vertical;min-height:80px;}
     </div>
 
     <!-- ====== GANADO ====== -->
-    <div id="page-ganado" class="page">
-      <div class="search-bar"><span>🔍</span><input type="text" id="ganadoSearch" placeholder="Buscar por arete, nombre o raza..." oninput="filterGanado()"/></div>
+<div id="page-ganado" class="page">
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="ganadoSearch" placeholder="Buscar por arete, nombre o raza..." oninput="filterGanado()"/>
+      </div>
+      
       <div class="card">
         <div class="card-header">
-          <div><div class="card-title">Registro de Ganado</div><div class="card-subtitle" id="ganadoCount">Cargando...</div></div>
+          <div>
+            <div class="card-title">Registro de Ganado</div>
+            <div class="card-subtitle" id="ganadoCount">Cargando...</div>
+          </div>
           <select id="ganadoFilter" onchange="filterGanado()" style="padding:8px 12px;border-radius:8px;border:1.5px solid #e0e0e0;font-size:13px;width:auto;">
-            <option value="">Todos</option><option value="activo">Activo</option>
-            <option value="vendido">Vendido</option><option value="muerto">Muerto</option>
+            <option value="">Todos</option>
+            <option value="activo">Activo</option>
+            <option value="vendido">Vendido</option>
+            <option value="muerto">Muerto</option>
           </select>
         </div>
+        
         <div class="table-wrap">
-          <table><thead><tr><th>Arete</th><th>Nombre</th><th>Especie/Raza</th><th>Sexo</th><th>Peso</th><th>Lote</th><th>Estado</th><th>Acciones</th></tr></thead>
-          <tbody id="ganadoTableBody"><tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">Cargando...</td></tr></tbody></table>
+          <table>
+            <thead>
+              <tr>
+                <th>Arete</th>
+                <th>Nombre</th>
+                <th>Especie/Raza</th>
+                <th>Sexo</th>
+                <th>Peso Inicial</th>
+                <th>Peso Actual</th>
+                <th>Lote</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="ganadoTableBody">
+              <tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">Cargando inventario...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -845,6 +871,20 @@ textarea{resize:vertical;min-height:80px;}
         <div class="form-group"><label>Sexo</label><select id="ganado_sexo"><option value="Hembra">Hembra</option><option value="Macho">Macho</option></select></div>
         <div class="form-group"><label>Fecha Nacimiento</label><input type="date" id="ganado_fecha_nacimiento"/></div>
         <div class="form-group"><label>Peso Inicial (kg)</label><input type="number" id="ganado_peso"/></div>
+        <div class="form-group">
+  <label for="ganadoFechaNac">Fecha de Nacimiento:</label>
+  <input type="date" id="ganadoFechaNac" />
+</div>
+
+<div class="form-group">
+  <label for="ganadoPesoInicial">Peso Inicial (kg):</label>
+  <input type="number" id="ganadoPesoInicial" step="0.01" min="0" placeholder="Ej. 350.50" required />
+</div>
+
+<div class="form-group">
+  <label for="ganadoColor">Color / Señas:</label>
+  <input type="text" id="ganadoColor" placeholder="Ej. Blanco con manchas negras" />
+</div>
         <div class="form-group"><label>Color</label><input type="text" id="ganado_color"/></div>
         <div class="form-group"><label>Lote *</label><select id="ganado_lote_id" required><option value="">Seleccione...</option></select></div>
         <div class="form-group"><label>Estado</label><select id="ganado_estado"><option value="activo">Activo</option><option value="vendido">Vendido</option><option value="muerto">Muerto</option></select></div>
@@ -1631,66 +1671,134 @@ async function toggleUsuarioActivo(id,estado){
 
 // ===== GANADO =====
 async function loadGanado(){
-  const tbody=document.getElementById('ganadoTableBody');
-  try{
-    const r=await fetch(API_BASE+'/ganado',{headers:authHeaders()});
-    listaGanado=await r.json();
-    document.getElementById('ganadoCount').textContent=`${listaGanado.length} animales`;
+  const tbody = document.getElementById('ganadoTableBody');
+  try {
+    const r = await fetch(API_BASE + '/ganado', { headers: authHeaders() });
+    listaGanado = await r.json();
+    document.getElementById('ganadoCount').textContent = `${listaGanado.length} animales`;
     renderizarTablaGanado(listaGanado);
-  }catch(e){if(tbody)tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:red;padding:30px;">Error de conexión.</td></tr>';}
+  } catch(e) {
+    if(tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:red;padding:30px;">Error de conexión con el servidor de Render.</td></tr>';
+  }
 }
+
 function renderizarTablaGanado(datos){
-  const tbody=document.getElementById('ganadoTableBody'); if(!tbody) return;
-  if(!datos.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:#999;">No hay registros</td></tr>';return;}
-  tbody.innerHTML=datos.map(a=>{
-    let bc='badge-green'; if(a.estado==='vendido')bc='badge-orange'; if(a.estado==='muerto')bc='badge-red';
-    return `<tr><td><span style="font-family:'IBM Plex Mono',monospace;background:#f5f5f5;padding:2px 8px;border-radius:6px;">${a.numero_arete}</span></td><td style="font-weight:600;">${a.nombre||'—'}</td><td>${a.especie}/${a.raza||'N/A'}</td><td>${a.sexo}</td><td>${a.peso_actual||0}kg</td><td>${a.lote_nombre||'Sin Lote'}</td><td><span class="badge ${bc}">${a.estado}</span></td><td><div style="display:flex;gap:5px;"><button class="btn btn-sm btn-outline" onclick="editGanado('${a.id}')">✏️</button><button class="btn btn-sm btn-outline" onclick="eliminarGanado('${a.id}')" style="border-color:#ff4d4d;color:#ff4d4d;">🗑️</button></div></td></tr>`;
+  const tbody = document.getElementById('ganadoTableBody'); 
+  if(!tbody) return;
+  
+  if(!datos.length){
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999;">No hay registros de hato bovino en la base de datos.</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = datos.map(a => {
+    let bc = 'badge-green'; 
+    if(a.estado === 'vendido') bc = 'badge-orange'; 
+    if(a.estado === 'muerto') bc = 'badge-red';
+    
+    return `<tr>
+      <td><span style="font-family:'IBM Plex Mono',monospace;background:#f5f5f5;padding:2px 8px;border-radius:6px;">${a.numero_arete}</span></td>
+      <td style="font-weight:600;">${a.nombre || '—'}</td>
+      <td>${a.especie} / <span style="color:#666;font-size:12px;">${a.raza || 'N/A'}</span></td>
+      <td>${a.sexo}</td>
+      
+      <td>${a.peso_inicial ? a.peso_inicial + ' kg' : '—'}</td>
+      <td style="font-weight:600; color:var(--moss-light);">${a.peso_actual ? a.peso_actual + ' kg' : '—'}</td>
+      
+      <td>${a.lote_nombre || 'Sin Lote'}</td>
+      <td><span class="badge ${bc}">${a.estado.toUpperCase()}</span></td>
+      <td>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-sm btn-outline" onclick="editGanado('${a.id}')">✏️</button>
+          <button class="btn btn-sm btn-outline" onclick="eliminarGanado('${a.id}')" style="border-color:#ff4d4d;color:#ff4d4d;">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
   }).join('');
 }
+
 function filterGanado(){
-  const s=(document.getElementById('ganadoSearch')?.value||'').toLowerCase();
-  const f=(document.getElementById('ganadoFilter')?.value||'').toLowerCase();
-  renderizarTablaGanado(listaGanado.filter(a=>{
-    const ms=!s||a.numero_arete.toLowerCase().includes(s)||(a.nombre||'').toLowerCase().includes(s)||(a.raza||'').toLowerCase().includes(s);
-    const mf=!f||(a.estado||'activo').toLowerCase()===f;
-    return ms&&mf;
+  const s = (document.getElementById('ganadoSearch')?.value || '').toLowerCase();
+  const f = (document.getElementById('ganadoFilter')?.value || '').toLowerCase();
+  renderizarTablaGanado(listaGanado.filter(a => {
+    const ms = !s || a.numero_arete.toLowerCase().includes(s) || (a.nombre || '').toLowerCase().includes(s) || (a.raza || '').toLowerCase().includes(s);
+    const mf = !f || (a.estado || 'activo').toLowerCase() === f;
+    return ms && mf;
   }));
 }
+
 async function guardarGanado(){
-  const form=document.getElementById('ganadoForm');
-  const editId=form.dataset.editId;
-  const payload={numero_arete:document.getElementById('ganado_arete').value.trim(),nombre:document.getElementById('ganado_nombre').value.trim(),especie:document.getElementById('ganado_especie').value,raza:document.getElementById('ganado_raza').value.trim(),sexo:document.getElementById('ganado_sexo').value,peso_inicial:parseFloat(document.getElementById('ganado_peso').value)||0,peso_actual:parseFloat(document.getElementById('ganado_peso').value)||0,color:document.getElementById('ganado_color').value.trim(),lote_id:document.getElementById('ganado_lote_id').value,observaciones:document.getElementById('ganado_observaciones').value.trim(),fecha_nacimiento:document.getElementById('ganado_fecha_nacimiento').value||null,estado:document.getElementById('ganado_estado').value||'activo'};
-  const url=editId?`${API_BASE}/ganado/${editId}`:`${API_BASE}/ganado`;
-  try{
-    const r=await fetch(url,{method:editId?'PUT':'POST',headers:authHeaders(),body:JSON.stringify(payload)});
-    const d=await r.json();
-    if(!r.ok) throw new Error(d.error||'Error');
-    showToast(editId?'¡Registro actualizado! 📝':'¡Animal registrado! 🐄','success');
+  const form = document.getElementById('ganadoForm');
+  const editId = form.dataset.editId;
+  
+  // Capturamos el peso usando el ID real de tu formulario (ganado_peso)
+  const pesoCapturado = parseFloat(document.getElementById('ganado_peso').value) || 0;
+  
+  const payload = {
+    numero_arete: document.getElementById('ganado_arete').value.trim(),
+    nombre: document.getElementById('ganado_nombre').value.trim(),
+    especie: document.getElementById('ganado_especie').value,
+    raza: document.getElementById('ganado_raza').value.trim(),
+    sexo: document.getElementById('ganado_sexo').value,
+    
+    // Sincronizamos ambas columnas para que impacten el backend blindado
+    peso_inicial: pesoCapturado,
+    peso_actual: pesoCapturado,
+    
+    color: document.getElementById('ganado_color').value.trim(),
+    lote_id: document.getElementById('ganado_lote_id').value,
+    observaciones: document.getElementById('ganado_observaciones').value.trim(),
+    fecha_nacimiento: document.getElementById('ganado_fecha_nacimiento').value || null,
+    estado: document.getElementById('ganado_estado').value || 'activo'
+  };
+  
+  const url = editId ? `${API_BASE}/ganado/${editId}` : `${API_BASE}/ganado`;
+  try {
+    const r = await fetch(url, {
+      method: editId ? 'PUT' : 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error || 'Error en la transacción');
+    
+    showToast(editId ? '¡Registro actualizado! 📝' : '¡Animal registrado! 🐄', 'success');
     closeModal('modalGanado');
-    await loadGanado(); await loadDashboard();
-  }catch(e){showToast('Error: '+e.message,'error');}
+    await loadGanado(); 
+    await loadDashboard();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
 }
+
 function editGanado(id){
-  const a=listaGanado.find(x=>x.id===id); if(!a) return;
-  cargarLotesEnSelect('ganado_lote_id').then(()=>document.getElementById('ganado_lote_id').value=a.lote_id||'');
-  document.querySelector('#modalGanado .modal-title').textContent=`✏️ Editando: ${a.nombre||a.numero_arete}`;
-  document.getElementById('ganado_arete').value=a.numero_arete||'';
-  document.getElementById('ganado_nombre').value=a.nombre||'';
-  document.getElementById('ganado_especie').value=a.especie||'';
-  document.getElementById('ganado_raza').value=a.raza||'';
-  document.getElementById('ganado_sexo').value=a.sexo||'';
-  document.getElementById('ganado_peso').value=a.peso_actual||a.peso_inicial||0;
-  document.getElementById('ganado_color').value=a.color||'';
-  document.getElementById('ganado_observaciones').value=a.observaciones||'';
-  document.getElementById('ganado_fecha_nacimiento').value=a.fecha_nacimiento?new Date(a.fecha_nacimiento).toISOString().split('T')[0]:'';
-  document.getElementById('ganado_estado').value=a.estado||'activo';
-  document.getElementById('ganadoForm').dataset.editId=id;
+  const a = listaGanado.find(x => x.id === id); 
+  if(!a) return;
+  
+  cargarLotesEnSelect('ganado_lote_id').then(() => document.getElementById('ganado_lote_id').value = a.lote_id || '');
+  
+  document.querySelector('#modalGanado .modal-title').textContent = `✏️ Editando: ${a.nombre || a.numero_arete}`;
+  document.getElementById('ganado_arete').value = a.numero_arete || '';
+  document.getElementById('ganado_nombre').value = a.nombre || '';
+  document.getElementById('ganado_especie').value = a.especie || '';
+  document.getElementById('ganado_raza').value = a.raza || '';
+  document.getElementById('ganado_sexo').value = a.sexo || '';
+  
+  // Al editar, cargamos el peso actual en el input para que pueda modificarse
+  document.getElementById('ganado_peso').value = a.peso_actual || a.peso_inicial || 0;
+  
+  document.getElementById('ganado_color').value = a.color || '';
+  document.getElementById('ganado_observaciones').value = a.observaciones || '';
+  document.getElementById('ganado_fecha_nacimiento').value = a.fecha_nacimiento ? new Date(a.fecha_nacimiento).toISOString().split('T')[0] : '';
+  document.getElementById('ganado_estado').value = a.estado || 'activo';
+  document.getElementById('ganadoForm').dataset.editId = id;
   document.getElementById('modalGanado').classList.add('open');
 }
+
 async function eliminarGanado(id){
-  const a=listaGanado.find(x=>x.id===id);
-  if(!confirm(`¿Eliminar "${a?.nombre||a?.numero_arete}"?`)) return;
-  await eliminarRegistro(id,'ganado');
+  const a = listaGanado.find(x => x.id === id);
+  if(!confirm(`¿Deseas eliminar permanentemente a "${a?.nombre || a?.numero_arete}" del inventario?`)) return;
+  await eliminarRegistro(id, 'ganado');
 }
 
 // ===== VENTAS =====
