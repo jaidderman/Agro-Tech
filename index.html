@@ -486,7 +486,7 @@ textarea{resize:vertical;min-height:80px;}
        <div class="brand-icon" style="background: transparent; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
     <img src="https://raw.githubusercontent.com/jaidderman/Agro-Tech/main/image%20agrotech.jpeg" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
 </div>
-        <div><div class="brand-name">Agro-Tech</div><div class="brand-sub">Sistema Gestor de Ganado y Siembras</div></div>
+        <div><div class="brand-name">Agro-Tech</div><div class="brand-sub">Sistema de Gestión Agropecuaria</div></div>
       </div>
     </div>
     <div class="sidebar-user">
@@ -780,15 +780,9 @@ textarea{resize:vertical;min-height:80px;}
         </div>
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:16px;">Producción Mensual (referencia)</div>
-        <div class="chart-bars">
-          <div class="chart-bar" style="height:40%"><span>Ene</span></div><div class="chart-bar" style="height:60%"><span>Feb</span></div>
-          <div class="chart-bar" style="height:45%"><span>Mar</span></div><div class="chart-bar" style="height:80%;background:var(--moss)"><span>Abr</span></div>
-          <div class="chart-bar" style="height:65%"><span>May</span></div><div class="chart-bar" style="height:90%;background:var(--moss)"><span>Jun</span></div>
-          <div class="chart-bar" style="height:75%"><span>Jul</span></div><div class="chart-bar" style="height:85%;background:var(--moss)"><span>Ago</span></div>
-          <div class="chart-bar" style="height:70%"><span>Sep</span></div><div class="chart-bar" style="height:55%"><span>Oct</span></div>
-          <div class="chart-bar" style="height:95%;background:var(--moss)"><span>Nov</span></div><div class="chart-bar" style="height:50%"><span>Dic</span></div>
-        </div>
+       <div class="card-title" style="margin-bottom:16px;">Ventas y Producción Mensual</div>
+        <div class="chart-bars" id="contenedorBarrasGrafica">
+          </div>
       </div>
     </div>
 
@@ -1899,7 +1893,45 @@ async function eliminarRegistro(id,modulo){
   }catch(e){showToast(e.message,'error');}
 }
 
-// ===== REPORTES PREMIUM =====
+// Función para cargar los datos en tiempo real dentro del contenedor
+async function cargarGraficaReal() {
+  const contenedor = document.getElementById('contenedorBarrasGrafica');
+  if (!contenedor) return;
+
+  const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  try {
+    const res = await fetch('https://agro-tech-s3vb.onrender.com/api/stats/ventas-mensuales', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    
+    if (data.valores) {
+      const maxValor = Math.max(...data.valores, 1); 
+      let htmlBarras = '';
+      
+      data.valores.forEach((totalMes, indice) => {
+        // Altura proporcional
+        const porcentajeAltura = Math.min(100, Math.max(10, Math.round((totalMes / maxValor) * 100)));
+        const dineroFormateado = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(totalMes);
+        const estiloColor = totalMes > 0 ? 'background: var(--moss);' : '';
+
+        htmlBarras += `
+          <div class="chart-bar" style="height: ${porcentajeAltura}%; ${estiloColor}" title="Total: ${dineroFormateado}">
+            <span>${nombresMeses[indice]}</span>
+          </div>
+        `;
+      });
+      contenedor.innerHTML = htmlBarras;
+    }
+  } catch (err) {
+    console.error("Error al renderizar gráfica dinámica:", err);
+    // Si no hay datos, muestra una maquetación base limpia en 10%
+    contenedor.innerHTML = nombresMeses.map(mes => `<div class="chart-bar" style="height: 10%"><span>${mes}</span></div>`).join('');
+  }
+}
+
+// ===== REPORTES =====
 async function generateReport(type){
   const fecha=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
   const folio='AGT-'+Date.now().toString().slice(-8);

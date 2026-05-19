@@ -333,6 +333,39 @@ app.delete('/api/ganado/:id', authMiddleware, async (req, res) => {
 });
 
 // ============================================================
+//  API — ESTADÍSTICAS MENSUALES DE VENTAS (REAL)
+// ============================================================
+app.get('/api/stats/ventas-mensuales', async (req, res) => {
+  try {
+    // Suma los precios de las ventas agrupándolas por el número de mes del año actual
+    const queryText = `
+      SELECT 
+        EXTRACT(MONTH FROM fecha) as mes,
+        SUM(precio) as total
+      FROM ventas
+      WHERE EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM NOW())
+      GROUP BY EXTRACT(MONTH FROM fecha)
+      ORDER BY mes
+    `;
+    const result = await pool.query(queryText);
+    
+    // Inicializamos un arreglo con los 12 meses en 0
+    const mesesValores = Array(12).fill(0);
+    
+    // Llenamos el arreglo con los datos reales de la BD
+    result.rows.forEach(row => {
+      const indiceMes = parseInt(row.mes) - 1; // Ene es 0, Feb es 1...
+      mesesValores[indiceMes] = parseFloat(row.total);
+    });
+
+    res.json({ valores: mesesValores });
+  } catch (err) {
+    console.error("Error al obtener estadísticas:", err.message);
+    res.status(500).json({ error: 'Error al procesar estadísticas de ventas' });
+  }
+});
+
+// ============================================================
 //  VENTAS
 // ============================================================
 app.get('/api/ventas', authMiddleware, async (req, res) => {
