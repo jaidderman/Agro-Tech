@@ -69,15 +69,6 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-// ==================== RBAC — CONTROL DE ACCESO POR ROLES ====================
-const requerirRoles = (...rolesPermitidos) => (req, res, next) => {
-  if (!req.user)
-    return res.status(401).json({ error: 'No autorizado' });
-  if (!rolesPermitidos.includes(req.user.rol))
-    return res.status(403).json({ error: 'Acceso denegado: No tienes permisos para esta acción.' });
-  next();
-};
-
 // ============================================================
 //  AUTH — LOGIN
 // ============================================================
@@ -224,7 +215,7 @@ app.get('/api/usuarios', authMiddleware, adminMiddleware, async (req, res) => {
 
 app.patch('/api/usuarios/:id/rol', authMiddleware, adminMiddleware, async (req, res) => {
   const { rol } = req.body;
-  const rolesValidos = ['admin', 'productor', 'encargado', 'tecnico'];
+  const rolesValidos = ['admin', 'ganadero', 'veterinario', 'trabajador'];
   if (!rolesValidos.includes(rol))
     return res.status(400).json({ error: 'Rol inválido' });
   try {
@@ -281,18 +272,18 @@ app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
 });
 
 // ============================================================
-//  LOTES — admin, productor, encargado
+//  LOTES
 // ============================================================
-app.get('/api/lotes', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.get('/api/lotes', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query('SELECT id,nombre FROM lotes WHERE activo=true ORDER BY nombre')).rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ============================================================
-//  GANADO — admin, productor, tecnico
+//  GANADO
 // ============================================================
-app.get('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.get('/api/ganado', authMiddleware, async (req, res) => {
   try {
     const { estado, lote_id } = req.query;
     let q = `SELECT g.*,l.nombre AS lote_nombre FROM ganado g LEFT JOIN lotes l ON g.lote_id=l.id WHERE 1=1`;
@@ -304,7 +295,7 @@ app.get('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecnic
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.post('/api/ganado', authMiddleware, async (req, res) => {
   const { lote_id,numero_arete,nombre,especie,raza,sexo,fecha_nacimiento,peso_inicial,color,estado,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -317,7 +308,7 @@ app.post('/api/ganado', authMiddleware, requerirRoles('admin','productor','tecni
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/ganado/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.put('/api/ganado/:id', authMiddleware, async (req, res) => {
   const { numero_arete,nombre,raza,sexo,peso_actual,peso_inicial,color,estado,observaciones,fecha_nacimiento,lote_id,especie } = req.body;
   try {
     const r = await pool.query(
@@ -331,7 +322,7 @@ app.put('/api/ganado/:id', authMiddleware, requerirRoles('admin','productor','te
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/ganado/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.delete('/api/ganado/:id', authMiddleware, async (req, res) => {
   try {
     const r = await pool.query('DELETE FROM ganado WHERE id=$1', [req.params.id]);
     if (!r.rowCount) return res.status(404).json({ error: 'El animal no existe' });
@@ -375,9 +366,9 @@ app.get('/api/stats/ventas-mensuales', async (req, res) => {
 });
 
 // ============================================================
-//  VENTAS — admin, productor
+//  VENTAS
 // ============================================================
-app.get('/api/ventas', authMiddleware, requerirRoles('admin','productor'), async (req, res) => {
+app.get('/api/ventas', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(`
       SELECT v.*,
@@ -392,7 +383,7 @@ app.get('/api/ventas', authMiddleware, requerirRoles('admin','productor'), async
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/ventas', authMiddleware, requerirRoles('admin','productor'), async (req, res) => {
+app.post('/api/ventas', authMiddleware, async (req, res) => {
   const { tipo, ganado_id, cultivo_id, comprador, precio, fecha, observaciones } = req.body;
   if (!tipo || !comprador || !precio || !fecha)
     return res.status(400).json({ error: 'Tipo, comprador, precio y fecha son obligatorios' });
@@ -414,7 +405,7 @@ app.post('/api/ventas', authMiddleware, requerirRoles('admin','productor'), asyn
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/ventas/:id', authMiddleware, requerirRoles('admin','productor'), async (req, res) => {
+app.put('/api/ventas/:id', authMiddleware, async (req, res) => {
   const { comprador, precio, fecha, observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -425,7 +416,7 @@ app.put('/api/ventas/:id', authMiddleware, requerirRoles('admin','productor'), a
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/ventas/:id', authMiddleware, requerirRoles('admin','productor'), async (req, res) => {
+app.delete('/api/ventas/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM ventas WHERE id=$1', [req.params.id]);
     res.json({ message: 'Venta eliminada' });
@@ -433,18 +424,18 @@ app.delete('/api/ventas/:id', authMiddleware, requerirRoles('admin','productor')
 });
 
 // ============================================================
-//  CATÁLOGO DE VACUNAS — admin, productor, tecnico
+//  CATÁLOGO DE VACUNAS
 // ============================================================
-app.get('/api/catalogo-vacunas', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.get('/api/catalogo-vacunas', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query('SELECT * FROM catalogo_vacunas WHERE activo=true ORDER BY nombre')).rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ============================================================
-//  VACUNACIONES — admin, productor, tecnico
+//  VACUNACIONES
 // ============================================================
-app.get('/api/vacunaciones', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.get('/api/vacunaciones', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(`
       SELECT v.*,g.nombre AS ganado_nombre,g.numero_arete,cv.nombre AS vacuna_nombre
@@ -455,7 +446,7 @@ app.get('/api/vacunaciones', authMiddleware, requerirRoles('admin','productor','
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/vacunaciones', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.post('/api/vacunaciones', authMiddleware, async (req, res) => {
   const { ganado_id,vacuna_id,fecha_aplicacion,dosis_aplicada,responsable,proxima_dosis,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -466,7 +457,7 @@ app.post('/api/vacunaciones', authMiddleware, requerirRoles('admin','productor',
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/vacunaciones/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.put('/api/vacunaciones/:id', authMiddleware, async (req, res) => {
   const { fecha_aplicacion,dosis_aplicada,responsable,proxima_dosis,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -478,7 +469,7 @@ app.put('/api/vacunaciones/:id', authMiddleware, requerirRoles('admin','producto
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/vacunaciones/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.delete('/api/vacunaciones/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM vacunaciones WHERE id=$1', [req.params.id]);
     res.json({ message: 'Vacunación eliminada' });
@@ -486,9 +477,9 @@ app.delete('/api/vacunaciones/:id', authMiddleware, requerirRoles('admin','produ
 });
 
 // ============================================================
-//  CULTIVOS — admin, productor, encargado
+//  CULTIVOS
 // ============================================================
-app.get('/api/cultivos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.get('/api/cultivos', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(
       `SELECT c.*,l.nombre AS lote_nombre FROM cultivos c LEFT JOIN lotes l ON c.lote_id=l.id ORDER BY c.fecha_registro DESC`
@@ -496,7 +487,7 @@ app.get('/api/cultivos', authMiddleware, requerirRoles('admin','productor','enca
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/cultivos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.post('/api/cultivos', authMiddleware, async (req, res) => {
   const { lote_id,nombre_cultivo,variedad,fecha_siembra,fecha_estimada_cosecha,area_sembrada,cantidad_semilla_kg,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -507,7 +498,7 @@ app.post('/api/cultivos', authMiddleware, requerirRoles('admin','productor','enc
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/cultivos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.put('/api/cultivos/:id', authMiddleware, async (req, res) => {
   const { estado,fecha_cosecha_real,rendimiento_ton,observaciones,nombre_cultivo,variedad,lote_id,area_sembrada,fecha_siembra,fecha_estimada_cosecha } = req.body;
   try {
     const r = await pool.query(
@@ -524,7 +515,7 @@ app.put('/api/cultivos/:id', authMiddleware, requerirRoles('admin','productor','
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/cultivos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.delete('/api/cultivos/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM cultivos WHERE id=$1', [req.params.id]);
     res.json({ message: 'Cultivo eliminado' });
@@ -582,9 +573,9 @@ app.delete('/api/alertas/:id', authMiddleware, async (req, res) => {
 });
 
 // ============================================================
-//  ALIMENTACIÓN — admin, productor, tecnico
+//  ALIMENTACIÓN
 // ============================================================
-app.get('/api/alimentacion', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.get('/api/alimentacion', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(
       `SELECT a.*,l.nombre AS nombre_lote FROM alimentacion a LEFT JOIN lotes l ON a.lote_id=l.id ORDER BY a.fecha DESC`
@@ -592,7 +583,7 @@ app.get('/api/alimentacion', authMiddleware, requerirRoles('admin','productor','
   } catch (err) { res.status(500).json({ error: 'Error: ' + err.message }); }
 });
 
-app.post('/api/alimentacion', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.post('/api/alimentacion', authMiddleware, async (req, res) => {
   const { lote_id,tipo_alimento,cantidad_kg,costo,responsable,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -603,7 +594,7 @@ app.post('/api/alimentacion', authMiddleware, requerirRoles('admin','productor',
   } catch (err) { res.status(500).json({ error: 'Error: ' + err.message }); }
 });
 
-app.put('/api/alimentacion/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.put('/api/alimentacion/:id', authMiddleware, async (req, res) => {
   const { tipo_alimento,cantidad_kg,costo,responsable } = req.body;
   try {
     res.json((await pool.query(
@@ -612,7 +603,7 @@ app.put('/api/alimentacion/:id', authMiddleware, requerirRoles('admin','producto
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/alimentacion/:id', authMiddleware, requerirRoles('admin','productor','tecnico'), async (req, res) => {
+app.delete('/api/alimentacion/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM alimentacion WHERE id=$1', [req.params.id]);
     res.json({ message: 'Registro eliminado' });
@@ -620,9 +611,9 @@ app.delete('/api/alimentacion/:id', authMiddleware, requerirRoles('admin','produ
 });
 
 // ============================================================
-//  ABONOS — admin, productor, encargado
+//  ABONOS
 // ============================================================
-app.get('/api/abonos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.get('/api/abonos', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(
       `SELECT a.*,c.nombre_cultivo AS cultivo_nombre FROM aplicacion_abonos a
@@ -630,7 +621,7 @@ app.get('/api/abonos', authMiddleware, requerirRoles('admin','productor','encarg
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/abonos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.post('/api/abonos', authMiddleware, async (req, res) => {
   const { cultivo_id,tipo_abono,cantidad_kg,fecha,costo,metodo_aplicacion,proveedor,responsable,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -641,7 +632,7 @@ app.post('/api/abonos', authMiddleware, requerirRoles('admin','productor','encar
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/abonos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.put('/api/abonos/:id', authMiddleware, async (req, res) => {
   const { tipo_abono,cantidad_kg,fecha,costo,metodo_aplicacion,responsable,observaciones } = req.body;
   try {
     res.json((await pool.query(
@@ -650,7 +641,7 @@ app.put('/api/abonos/:id', authMiddleware, requerirRoles('admin','productor','en
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/abonos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.delete('/api/abonos/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM aplicacion_abonos WHERE id=$1', [req.params.id]);
     res.json({ message: 'Abono eliminado' });
@@ -658,9 +649,9 @@ app.delete('/api/abonos/:id', authMiddleware, requerirRoles('admin','productor',
 });
 
 // ============================================================
-//  RIEGOS — admin, productor, encargado
+//  RIEGOS
 // ============================================================
-app.get('/api/riegos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.get('/api/riegos', authMiddleware, async (req, res) => {
   try {
     res.json((await pool.query(
       `SELECT r.*,c.nombre_cultivo AS cultivo_nombre FROM riegos r
@@ -668,7 +659,7 @@ app.get('/api/riegos', authMiddleware, requerirRoles('admin','productor','encarg
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/riegos', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.post('/api/riegos', authMiddleware, async (req, res) => {
   const { cultivo_id,fecha,tipo_riego,duracion_horas,litros_agua,costo,observaciones } = req.body;
   try {
     const r = await pool.query(
@@ -679,7 +670,7 @@ app.post('/api/riegos', authMiddleware, requerirRoles('admin','productor','encar
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/riegos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.put('/api/riegos/:id', authMiddleware, async (req, res) => {
   const { tipo_riego,fecha,duracion_horas,litros_agua,costo,observaciones } = req.body;
   try {
     res.json((await pool.query(
@@ -688,7 +679,7 @@ app.put('/api/riegos/:id', authMiddleware, requerirRoles('admin','productor','en
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/riegos/:id', authMiddleware, requerirRoles('admin','productor','encargado'), async (req, res) => {
+app.delete('/api/riegos/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM riegos WHERE id=$1', [req.params.id]);
     res.json({ message: 'Riego eliminado' });

@@ -502,21 +502,21 @@ textarea{resize:vertical;min-height:80px;}
         <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</div>
         <div class="nav-item" onclick="showPage('alertas',this)"><span class="nav-icon">🔔</span> Alertas <span class="nav-badge" id="alertBadge">0</span></div>
       </div>
-      <div class="nav-section" id="navGanaderia">
+      <div class="nav-section">
         <div class="nav-section-label">Ganadería</div>
-        <div class="nav-item" id="navGanado" onclick="showPage('ganado',this)"><span class="nav-icon">🐄</span> Ganado</div>
-        <div class="nav-item" id="navVacunaciones" onclick="showPage('vacunaciones',this)"><span class="nav-icon">💉</span> Vacunaciones</div>
-        <div class="nav-item" id="navAlimentacion" onclick="showPage('alimentacion',this)"><span class="nav-icon">🌾</span> Alimentación</div>
+        <div class="nav-item" onclick="showPage('ganado',this)"><span class="nav-icon">🐄</span> Ganado</div>
+        <div class="nav-item" onclick="showPage('vacunaciones',this)"><span class="nav-icon">💉</span> Vacunaciones</div>
+        <div class="nav-item" onclick="showPage('alimentacion',this)"><span class="nav-icon">🌾</span> Alimentación</div>
       </div>
-      <div class="nav-section" id="navAgricultura">
+      <div class="nav-section">
         <div class="nav-section-label">Agricultura</div>
-        <div class="nav-item" id="navCultivos" onclick="showPage('cultivos',this)"><span class="nav-icon">🌽</span> Cultivos</div>
-        <div class="nav-item" id="navAbonos" onclick="showPage('abonos',this)"><span class="nav-icon">🧪</span> Abonos</div>
-        <div class="nav-item" id="navRiegos" onclick="showPage('riegos',this)"><span class="nav-icon">💧</span> Riegos</div>
+        <div class="nav-item" onclick="showPage('cultivos',this)"><span class="nav-icon">🌽</span> Cultivos</div>
+        <div class="nav-item" onclick="showPage('abonos',this)"><span class="nav-icon">🧪</span> Abonos</div>
+        <div class="nav-item" onclick="showPage('riegos',this)"><span class="nav-icon">💧</span> Riegos</div>
       </div>
-      <div class="nav-section" id="navComercial">
+      <div class="nav-section">
         <div class="nav-section-label">Comercial</div>
-        <div class="nav-item" id="navVentas" onclick="showPage('ventas',this)"><span class="nav-icon">💰</span> Ventas</div>
+        <div class="nav-item" onclick="showPage('ventas',this)"><span class="nav-icon">💰</span> Ventas</div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Análisis</div>
@@ -805,11 +805,11 @@ textarea{resize:vertical;min-height:80px;}
             </table>
           </div>
           <div style="margin-top:16px;padding:12px;background:var(--cream);border-radius:10px;font-size:12px;color:#888;">
-            <strong>Roles disponibles:</strong>
-            <span class="badge badge-red" style="margin:0 4px;">admin</span> — Administrador / Acceso Total |
-            <span class="badge badge-orange" style="margin:0 4px;">productor</span> — Productor Agrícola / Finanzas |
-            <span class="badge badge-blue" style="margin:0 4px;">encargado</span> — Encargado de Campo / Cultivos |
-            <span class="badge badge-purple" style="margin:0 4px;">tecnico</span> — Técnico Veterinario / Ganado
+            <strong>Roles:</strong>
+            <span class="badge badge-red" style="margin:0 4px;">Admin</span> — Acceso total |
+            <span class="badge badge-orange" style="margin:0 4px;">Ganadero</span> — Módulos ganado |
+            <span class="badge badge-blue" style="margin:0 4px;">Veterinario</span> — Vacunas |
+            <span class="badge badge-green" style="margin:0 4px;">Trabajador</span> — Registros básicos
           </div>
         </div>
       </div>
@@ -1254,93 +1254,20 @@ function showApp(){
   document.getElementById('sidebarName').textContent=(currentUser?.nombre||'')+' '+(currentUser?.apellido||'');
   document.getElementById('sidebarRole').textContent=currentUser?.rol||'usuario';
   document.getElementById('sidebarAvatar').textContent=(currentUser?.nombre||'U')[0].toUpperCase();
-
-  const rol = currentUser?.rol;
-
-  // ── Ocultar/mostrar secciones del sidebar según rol ──
-  const hide = id => { const el=document.getElementById(id); if(el) el.style.display='none'; };
-  const show = id => { const el=document.getElementById(id); if(el) el.style.display=''; };
-
-  // Resetear todo primero (por si se recarga)
-  ['navGanaderia','navAgricultura','navComercial','navAdminSection'].forEach(show);
-
-  if(rol === 'admin'){
-    // Admin ve todo
-    show('navAdminSection');
-
-  } else if(rol === 'productor'){
-    // Productor: acceso a todo productivo y financiero, sin administración
-    hide('navAdminSection');
-
-  } else if(rol === 'encargado'){
-    // Encargado: solo agricultura (cultivos, abonos, riegos), sin ganadería, ventas ni admin
-    hide('navGanaderia');
-    hide('navComercial');
-    hide('navAdminSection');
-
-  } else if(rol === 'tecnico'){
-    // Técnico: solo ganadería (ganado, vacunaciones, alimentación), sin cultivos, ventas ni admin
-    hide('navAgricultura');
-    hide('navComercial');
-    hide('navAdminSection');
-
-  } else {
-    // Cualquier otro rol desconocido: mínimo acceso
-    hide('navGanaderia');
-    hide('navAgricultura');
-    hide('navComercial');
-    hide('navAdminSection');
-  }
-
-  // ── Redirigir a la sección por defecto según rol ──
-  if(rol === 'tecnico'){
-    showPage('ganado', null);
-  } else if(rol === 'encargado'){
-    showPage('cultivos', null);
-  } else {
-    loadDashboard();
-  }
-
+  if(currentUser?.rol==='admin') document.getElementById('navAdminSection').style.display='block';
+  loadDashboard();
   actualizarBotonPrincipal('dashboard');
-  cargarGraficaReal();
 }
 function logout(){
   localStorage.removeItem('agrotech_token'); localStorage.removeItem('agrotech_user');
   token=null; currentUser=null;
   document.getElementById('appWrapper').style.display='none';
   document.getElementById('loginPage').style.display='flex';
-  // Restaurar visibilidad de secciones para próximo login
-  ['navGanaderia','navAgricultura','navComercial','navAdminSection'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.style.display='none';
-  });
+  document.getElementById('navAdminSection').style.display='none';
 }
 
 // ===== NAVIGATION =====
 function showPage(page,navEl){
-  // ── RBAC: bloquear navegación forzada por URL o código ──
-  const rol = currentUser?.rol;
-  const paginasVentas    = ['ventas'];
-  const paginasAdmin     = ['admin'];
-  const paginasCultivos  = ['cultivos','abonos','riegos'];
-  const paginasGanado    = ['ganado','vacunaciones','alimentacion'];
-
-  if(rol === 'tecnico'){
-    if([...paginasCultivos,...paginasVentas,...paginasAdmin].includes(page)){
-      showToast('No tienes permiso para acceder a esa sección.','error');
-      page = 'ganado'; navEl = null;
-    }
-  } else if(rol === 'encargado'){
-    if([...paginasGanado,...paginasVentas,...paginasAdmin].includes(page)){
-      showToast('No tienes permiso para acceder a esa sección.','error');
-      page = 'cultivos'; navEl = null;
-    }
-  } else if(rol === 'productor'){
-    if(paginasAdmin.includes(page)){
-      showToast('No tienes permiso para acceder a esa sección.','error');
-      page = 'dashboard'; navEl = null;
-    }
-  }
-
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
@@ -1514,7 +1441,7 @@ async function loadAdminUsuarios(){
       <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--amber);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">${(u.nombre||'?')[0].toUpperCase()}</div><div><div style="font-weight:600;font-size:13px;">${u.nombre} ${u.apellido}</div>${u.id===currentUser.id?'<div style="font-size:10px;color:#999;">(tú)</div>':''}</div></div></td>
       <td style="font-size:12px;color:#666;">${u.email}</td>
       <td><span class="badge ${rolBadge[u.rol]||'badge-green'}">${u.rol}</span></td>
-      <td>${u.id!==currentUser.id?`<select class="role-select" onchange="cambiarRolUsuario('${u.id}',this.value)"><option value="">— Cambiar —</option><option value="admin">admin (Administrador / Acceso Total)</option><option value="productor">productor (Productor Agrícola / Finanzas)</option><option value="encargado">encargado (Encargado de Campo / Cultivos)</option><option value="tecnico">tecnico (Técnico Veterinario / Ganado)</option></select>`:'<span style="font-size:12px;color:#bbb;">No editable</span>'}</td>
+      <td>${u.id!==currentUser.id?`<select class="role-select" onchange="cambiarRolUsuario('${u.id}',this.value)"><option value="">— Cambiar —</option><option value="admin">Admin</option><option value="ganadero">Ganadero</option><option value="veterinario">Veterinario</option><option value="trabajador">Trabajador</option></select>`:'<span style="font-size:12px;color:#bbb;">No editable</span>'}</td>
       <td>${u.id!==currentUser.id?`<button class="user-status-toggle ${u.activo?'active':'inactive'}" onclick="toggleUsuarioActivo('${u.id}',${!u.activo})">${u.activo?'✓ Activo':'✗ Inactivo'}</button>`:'<span class="badge badge-green">Activo</span>'}</td>
       <td style="font-size:12px;color:#999;">${formatDate(u.fecha_registro)}</td>
     </tr>`).join('');
@@ -1974,27 +1901,33 @@ async function cargarGraficaReal() {
   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   try {
-    const res = await fetch(`${API_BASE}/stats/ventas-mensuales`, {
-      headers: authHeaders()
+    const res = await fetch('https://agro-tech-s3vb.onrender.com/api/stats/ventas-mensuales', {
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-
+    
     if (data.valores) {
-      const maxValor = Math.max(...data.valores, 1);
+      const maxValor = Math.max(...data.valores, 1); 
       let htmlBarras = '';
-
+      
       data.valores.forEach((totalMes, indice) => {
-        const porcentajeAltura = Math.min(100, Math.max(4, Math.round((totalMes / maxValor) * 100)));
+        // Altura proporcional
+        const porcentajeAltura = Math.min(100, Math.max(10, Math.round((totalMes / maxValor) * 100)));
         const dineroFormateado = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(totalMes);
         const estiloColor = totalMes > 0 ? 'background: var(--moss);' : '';
 
-        htmlBarras += `<div class="chart-bar" style="height:${porcentajeAltura}%;${estiloColor}" title="Total: ${dineroFormateado}"><span>${nombresMeses[indice]}</span></div>`;
+        htmlBarras += `
+          <div class="chart-bar" style="height: ${porcentajeAltura}%; ${estiloColor}" title="Total: ${dineroFormateado}">
+            <span>${nombresMeses[indice]}</span>
+          </div>
+        `;
       });
       contenedor.innerHTML = htmlBarras;
     }
   } catch (err) {
     console.error("Error al renderizar gráfica dinámica:", err);
-    contenedor.innerHTML = nombresMeses.map(mes => `<div class="chart-bar" style="height:4%"><span>${mes}</span></div>`).join('');
+    // Si no hay datos, muestra una maquetación base limpia en 10%
+    contenedor.innerHTML = nombresMeses.map(mes => `<div class="chart-bar" style="height: 10%"><span>${mes}</span></div>`).join('');
   }
 }
 
