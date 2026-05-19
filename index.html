@@ -2091,33 +2091,47 @@ async function generateReport(type){
   }
 
 const reportHTML = `
-  <style>
-    /* Estilos embebidos para forzar el flujo correcto en impresión multi-hoja */
+<style>
+    /* Configuración de Página Global para el Navegador */
+    @page {
+      size: letter;
+      margin: 15mm 12mm 15mm 12mm;
+    }
+
+    /* Contenedor Base Flujo Libre */
     .print-report { 
       width: 100%; 
-      max-width: 800px; 
-      margin: 0 auto; 
-      padding: 10px; 
-      background: #faf8f3; 
+      max-width: 100%;
+      margin: 0; 
+      padding: 0;
+      background: #ffffff !important; 
       color: #2d1f0e;
       font-family: 'Outfit', sans-serif;
-    }
-    .print-border { 
-      border: 1px solid #e5dfd5; 
-      padding: 25px; 
-      background: #ffffff; 
+      display: block !important;
+      height: auto !important;
+      overflow: visible !important;
     }
     
-    /* Configuración de Tablas Dinámicas: Si los datos exceden la página, fluyen libremente */
+    .print-border { 
+      border: none !important; /* Quitamos bordes rígidos que encierran el flujo */
+      padding: 0; 
+      background: #ffffff !important;
+      display: block !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    
+    /* CONTROL ESTRICTO DE TABLAS: Permite saltar de hoja de forma natural */
     .report-table { 
       width: 100%; 
       border-collapse: collapse; 
-      margin-bottom: 25px; 
-      page-break-inside: auto; 
+      margin-top: 15px;
+      margin-bottom: 30px; 
+      page-break-inside: auto !important; 
     }
     .report-table tr { 
-      page-break-inside: avoid; 
-      page-break-after: auto; 
+      page-break-inside: avoid !important; /* Evita que una fila se parta a la mitad */
+      page-break-after: auto !important; 
     }
     .report-table th { 
       background: #527a38 !important; 
@@ -2125,13 +2139,17 @@ const reportHTML = `
       padding: 10px; 
       font-size: 11px; 
       text-align: left;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .report-table td { 
       padding: 9px 10px; 
-      border: 1px solid #e5dfd5; 
+      border: 1px solid #e5dfd5 !important; 
       font-size: 11px; 
+      background: transparent !important;
     }
     
+    /* Encabezado del Reporte */
     .print-header-bar { 
       display: flex; 
       justify-content: space-between; 
@@ -2139,44 +2157,62 @@ const reportHTML = `
       width: 100%; 
       border-bottom: 3px solid #3d5c2a; 
       padding-bottom: 12px; 
-      margin-bottom: 20px; 
+      margin-bottom: 20px;
+      page-break-inside: avoid !important;
     }
     .print-title-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 15px;
-      page-break-inside: avoid;
+      page-break-inside: avoid !important;
     }
+    
+    /* Bloques de Información */
     .report-info-grid {
       display: flex;
       gap: 12px;
-      margin-bottom: 20px;
-      page-break-inside: avoid;
+      margin-bottom: 25px;
+      page-break-inside: avoid !important;
     }
     .report-info-item {
       flex: 1;
-      background: #faf8f3;
+      background: #faf8f3 !important;
       padding: 8px 12px;
       border-radius: 6px;
-      border: 1px solid #e5dfd5;
+      border: 1px solid #e5dfd5 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .ri-label { font-size: 10px; color: #7a5c3a; text-transform: uppercase; font-weight: 600; }
     .ri-value { font-size: 13px; font-weight: 500; margin-top: 2px; }
 
+    /* SECCIÓN DE FIRMAS BLINDADA: Siempre se mantiene unida, nunca huérfana */
     .print-signatures { 
       display: flex; 
       justify-content: space-around; 
-      margin-top: 40px; 
-      page-break-inside: avoid; 
+      margin-top: 50px; 
+      page-break-inside: avoid !important; /* Obliga a las firmas a estar juntas */
+      page-break-before: auto !important;
     }
-    .signature-block { text-align: center; width: 42%; }
-    .signature-line { border-top: 1px solid #7a5c3a; margin-bottom: 6px; }
+    .signature-block { text-align: center; width: 42%; page-break-inside: avoid !important; }
+    .signature-line { border-top: 1px solid #7a5c3a !important; margin-bottom: 6px; }
     .signature-name { font-weight: 600; font-size: 13px; color: #2d1f0e; }
     .signature-role { font-size: 11px; color: #7a5c3a; }
 
+    /* Marca de agua y pie de página */
     .print-watermark { position: fixed; top: 40%; left: 25%; opacity: 0.03; font-size: 80px; transform: rotate(-30deg); font-weight: 700; pointer-events: none; }
-    .print-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 20px; font-size: 10px; color: #64748b; page-break-inside: avoid; }
+    .print-footer { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      border-top: 1px solid #e2e8f0 !important; 
+      padding-top: 10px; 
+      margin-top: 30px; 
+      font-size: 10px; 
+      color: #64748b; 
+      page-break-inside: avoid !important; 
+    }
   </style>
 
   <div class="print-report">
